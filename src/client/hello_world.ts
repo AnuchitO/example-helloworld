@@ -22,17 +22,6 @@ import {
   createKeypairFromFile,
 } from './utils';
 
-
-/**
- * Hello world's program id
- */
-let programId: PublicKey;
-
-/**
- * The public key of the account we are saying hello to
- */
-let greetedPubkey: PublicKey;
-
 /**
  * Path to program files
  */
@@ -141,8 +130,10 @@ export async function establishPayer(_connection: Connection): Promise<Keypair> 
 /**
  * Check if the hello world BPF program has been deployed
  */
-export async function checkProgram(_connection: Connection, _payer: Keypair): Promise<void> {
+export async function checkProgram(_connection: Connection, _payer: Keypair): Promise<[PublicKey, PublicKey]> {
   // Read program id from keypair file
+  // Hello world's program id
+  let programId;
   try {
     const programKeypair = await createKeypairFromFile(PROGRAM_KEYPAIR_PATH);
     programId = programKeypair.publicKey;
@@ -170,18 +161,23 @@ export async function checkProgram(_connection: Connection, _payer: Keypair): Pr
 
   // Derive the address (public key) of a greeting account from the program so that it's easy to find later.
   const GREETING_SEED = 'hello';
-  greetedPubkey = await PublicKey.createWithSeed(
+
+
+  /**
+   * The public key of the account we are saying hello to
+   */
+  const _greetedPubkey: PublicKey = await PublicKey.createWithSeed(
     _payer.publicKey,
     GREETING_SEED,
     programId,
   );
 
   // Check if the greeting account has already been created
-  const greetedAccount = await _connection.getAccountInfo(greetedPubkey);
+  const greetedAccount = await _connection.getAccountInfo(_greetedPubkey);
   if (greetedAccount === null) {
     console.log(
       'Creating account',
-      greetedPubkey.toBase58(),
+      _greetedPubkey.toBase58(),
       'to say hello to',
     );
     const lamports = await _connection.getMinimumBalanceForRentExemption(
@@ -193,7 +189,7 @@ export async function checkProgram(_connection: Connection, _payer: Keypair): Pr
         fromPubkey: _payer.publicKey,
         basePubkey: _payer.publicKey,
         seed: GREETING_SEED,
-        newAccountPubkey: greetedPubkey,
+        newAccountPubkey: _greetedPubkey,
         lamports,
         space: GREETING_SIZE,
         programId,
@@ -201,15 +197,17 @@ export async function checkProgram(_connection: Connection, _payer: Keypair): Pr
     );
     await sendAndConfirmTransaction(_connection, transaction, [_payer]);
   }
+
+  return [_greetedPubkey, programId];
 }
 
 /**
  * Say hello
  */
-export async function sayHello(_connection: Connection, _payer: Keypair): Promise<void> {
-  console.log('Saying hello to', greetedPubkey.toBase58());
+export async function sayHello(_connection: Connection, _payer: Keypair, _greetedPubkey: PublicKey, programId: PublicKey): Promise<void> {
+  console.log('Saying hello to', _greetedPubkey.toBase58());
   const instruction = new TransactionInstruction({
-    keys: [{ pubkey: greetedPubkey, isSigner: false, isWritable: true }],
+    keys: [{ pubkey: _greetedPubkey, isSigner: false, isWritable: true }],
     programId,
     data: Buffer.alloc(0), // All instructions are hellos
   });
@@ -223,8 +221,8 @@ export async function sayHello(_connection: Connection, _payer: Keypair): Promis
 /**
  * Report the number of times the greeted account has been said hello to
  */
-export async function reportGreetings(_connection: Connection): Promise<void> {
-  const accountInfo = await _connection.getAccountInfo(greetedPubkey);
+export async function reportGreetings(_connection: Connection, _greetedPubkey: PublicKey): Promise<void> {
+  const accountInfo = await _connection.getAccountInfo(_greetedPubkey);
   if (accountInfo === null) {
     throw 'Error: cannot find the greeted account';
   }
@@ -234,7 +232,7 @@ export async function reportGreetings(_connection: Connection): Promise<void> {
     accountInfo.data,
   );
   console.log(
-    greetedPubkey.toBase58(),
+    _greetedPubkey.toBase58(),
     'has been greeted',
     greeting.counter,
     'time(s)',
