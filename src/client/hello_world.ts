@@ -24,11 +24,6 @@ import {
 
 
 /**
- * Keypair associated to the fees' payer
- */
-let payer: Keypair;
-
-/**
  * Hello world's program id
  */
 let programId: PublicKey;
@@ -101,9 +96,10 @@ export async function establishConnection(): Promise<Connection> {
 /**
  * Establish an account to pay for everything
  */
-export async function establishPayer(_connection: Connection): Promise<void> {
+export async function establishPayer(_connection: Connection): Promise<Keypair> {
   let fees = 0;
-  if (!payer) {
+  let _payer; // Keypair associated to the fees' payer
+  if (!_payer) {
     const { feeCalculator } = await _connection.getRecentBlockhash();
 
     // Calculate the cost to fund the greeter account
@@ -114,18 +110,18 @@ export async function establishPayer(_connection: Connection): Promise<void> {
 
     try {
       // Get payer from cli config
-      payer = await getPayer();
+      _payer = await getPayer();
     } catch (err) {
       // Fund a new payer via airdrop
-      payer = await newAccountWithLamports(_connection, fees);
+      _payer = await newAccountWithLamports(_connection, fees);
     }
   }
 
-  const lamports = await _connection.getBalance(payer.publicKey);
+  const lamports = await _connection.getBalance(_payer.publicKey);
   if (lamports < fees) {
     // This should only happen when using cli config keypair
     const sig = await _connection.requestAirdrop(
-      payer.publicKey,
+      _payer.publicKey,
       fees - lamports,
     );
     await _connection.confirmTransaction(sig);
@@ -133,17 +129,19 @@ export async function establishPayer(_connection: Connection): Promise<void> {
 
   console.log(
     'Using account',
-    payer.publicKey.toBase58(),
+    _payer.publicKey.toBase58(),
     'containing',
     lamports / LAMPORTS_PER_SOL,
     'SOL to pay for fees',
   );
+
+  return _payer;
 }
 
 /**
  * Check if the hello world BPF program has been deployed
  */
-export async function checkProgram(_connection: Connection): Promise<void> {
+export async function checkProgram(_connection: Connection, _payer: Keypair): Promise<void> {
   // Read program id from keypair file
   try {
     const programKeypair = await createKeypairFromFile(PROGRAM_KEYPAIR_PATH);
@@ -173,7 +171,7 @@ export async function checkProgram(_connection: Connection): Promise<void> {
   // Derive the address (public key) of a greeting account from the program so that it's easy to find later.
   const GREETING_SEED = 'hello';
   greetedPubkey = await PublicKey.createWithSeed(
-    payer.publicKey,
+    _payer.publicKey,
     GREETING_SEED,
     programId,
   );
@@ -192,8 +190,8 @@ export async function checkProgram(_connection: Connection): Promise<void> {
 
     const transaction = new Transaction().add(
       SystemProgram.createAccountWithSeed({
-        fromPubkey: payer.publicKey,
-        basePubkey: payer.publicKey,
+        fromPubkey: _payer.publicKey,
+        basePubkey: _payer.publicKey,
         seed: GREETING_SEED,
         newAccountPubkey: greetedPubkey,
         lamports,
@@ -201,14 +199,14 @@ export async function checkProgram(_connection: Connection): Promise<void> {
         programId,
       }),
     );
-    await sendAndConfirmTransaction(_connection, transaction, [payer]);
+    await sendAndConfirmTransaction(_connection, transaction, [_payer]);
   }
 }
 
 /**
  * Say hello
  */
-export async function sayHello(_connection: Connection): Promise<void> {
+export async function sayHello(_connection: Connection, _payer: Keypair): Promise<void> {
   console.log('Saying hello to', greetedPubkey.toBase58());
   const instruction = new TransactionInstruction({
     keys: [{ pubkey: greetedPubkey, isSigner: false, isWritable: true }],
@@ -218,7 +216,7 @@ export async function sayHello(_connection: Connection): Promise<void> {
   await sendAndConfirmTransaction(
     _connection,
     new Transaction().add(instruction),
-    [payer],
+    [_payer],
   );
 }
 

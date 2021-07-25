@@ -27,13 +27,13 @@ async function main() {
   const connection: Connection = await establishConnection();
 
   // Determine who pays for the fees
-  await establishPayer(connection);
+  const payer = await establishPayer(connection);
 
   // Check if the program has been deployed
-  await checkProgram(connection);
+  await checkProgram(connection, payer);
 
   // Say hello to an account
-  await sayHello(connection);
+  await sayHello(connection, payer);
 
   // Find out how many times that account has been greeted
   await reportGreetings(connection);
