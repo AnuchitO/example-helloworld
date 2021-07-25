@@ -22,10 +22,6 @@ import {
   createKeypairFromFile,
 } from './utils';
 
-/**
- * Connection to the network
- */
-let connection: Connection;
 
 /**
  * Keypair associated to the fees' payer
@@ -91,9 +87,12 @@ const GREETING_SIZE = borsh.serialize(
 /**
  * Establish a connection to the cluster
  */
+/**
+ * Connection to the network
+ */
 export async function establishConnection(): Promise<Connection> {
   const rpcUrl = await getRpcUrl();
-  connection = new Connection(rpcUrl, 'confirmed');
+  const connection = new Connection(rpcUrl, 'confirmed');
   const version = await connection.getVersion();
   console.log('Connection to cluster established:', rpcUrl, version);
   return connection;
@@ -144,7 +143,7 @@ export async function establishPayer(_connection: Connection): Promise<void> {
 /**
  * Check if the hello world BPF program has been deployed
  */
-export async function checkProgram(): Promise<void> {
+export async function checkProgram(_connection: Connection): Promise<void> {
   // Read program id from keypair file
   try {
     const programKeypair = await createKeypairFromFile(PROGRAM_KEYPAIR_PATH);
@@ -157,7 +156,7 @@ export async function checkProgram(): Promise<void> {
   }
 
   // Check if the program has been deployed
-  const programInfo = await connection.getAccountInfo(programId);
+  const programInfo = await _connection.getAccountInfo(programId);
   if (programInfo === null) {
     if (fs.existsSync(PROGRAM_SO_PATH)) {
       throw new Error(
@@ -180,14 +179,14 @@ export async function checkProgram(): Promise<void> {
   );
 
   // Check if the greeting account has already been created
-  const greetedAccount = await connection.getAccountInfo(greetedPubkey);
+  const greetedAccount = await _connection.getAccountInfo(greetedPubkey);
   if (greetedAccount === null) {
     console.log(
       'Creating account',
       greetedPubkey.toBase58(),
       'to say hello to',
     );
-    const lamports = await connection.getMinimumBalanceForRentExemption(
+    const lamports = await _connection.getMinimumBalanceForRentExemption(
       GREETING_SIZE,
     );
 
@@ -202,14 +201,14 @@ export async function checkProgram(): Promise<void> {
         programId,
       }),
     );
-    await sendAndConfirmTransaction(connection, transaction, [payer]);
+    await sendAndConfirmTransaction(_connection, transaction, [payer]);
   }
 }
 
 /**
  * Say hello
  */
-export async function sayHello(): Promise<void> {
+export async function sayHello(_connection: Connection): Promise<void> {
   console.log('Saying hello to', greetedPubkey.toBase58());
   const instruction = new TransactionInstruction({
     keys: [{ pubkey: greetedPubkey, isSigner: false, isWritable: true }],
@@ -217,7 +216,7 @@ export async function sayHello(): Promise<void> {
     data: Buffer.alloc(0), // All instructions are hellos
   });
   await sendAndConfirmTransaction(
-    connection,
+    _connection,
     new Transaction().add(instruction),
     [payer],
   );
@@ -226,8 +225,8 @@ export async function sayHello(): Promise<void> {
 /**
  * Report the number of times the greeted account has been said hello to
  */
-export async function reportGreetings(): Promise<void> {
-  const accountInfo = await connection.getAccountInfo(greetedPubkey);
+export async function reportGreetings(_connection: Connection): Promise<void> {
+  const accountInfo = await _connection.getAccountInfo(greetedPubkey);
   if (accountInfo === null) {
     throw 'Error: cannot find the greeted account';
   }

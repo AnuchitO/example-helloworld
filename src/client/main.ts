@@ -30,13 +30,13 @@ async function main() {
   await establishPayer(connection);
 
   // Check if the program has been deployed
-  await checkProgram();
+  await checkProgram(connection);
 
   // Say hello to an account
-  await sayHello();
+  await sayHello(connection);
 
   // Find out how many times that account has been greeted
-  await reportGreetings();
+  await reportGreetings(connection);
 
   console.log('Success');
 }
