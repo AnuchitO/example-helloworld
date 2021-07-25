@@ -66,7 +66,7 @@ const PROGRAM_KEYPAIR_PATH = path.join(PROGRAM_PATH, 'helloworld-keypair.json');
  */
 class GreetingAccount {
   counter = 0;
-  constructor(fields: {counter: number} | undefined = undefined) {
+  constructor(fields: { counter: number } | undefined = undefined) {
     if (fields) {
       this.counter = fields.counter;
     }
@@ -77,7 +77,7 @@ class GreetingAccount {
  * Borsh schema definition for greeting accounts
  */
 const GreetingSchema = new Map([
-  [GreetingAccount, {kind: 'struct', fields: [['counter', 'u32']]}],
+  [GreetingAccount, { kind: 'struct', fields: [['counter', 'u32']] }],
 ]);
 
 /**
@@ -91,23 +91,24 @@ const GREETING_SIZE = borsh.serialize(
 /**
  * Establish a connection to the cluster
  */
-export async function establishConnection(): Promise<void> {
+export async function establishConnection(): Promise<Connection> {
   const rpcUrl = await getRpcUrl();
   connection = new Connection(rpcUrl, 'confirmed');
   const version = await connection.getVersion();
   console.log('Connection to cluster established:', rpcUrl, version);
+  return connection;
 }
 
 /**
  * Establish an account to pay for everything
  */
-export async function establishPayer(): Promise<void> {
+export async function establishPayer(_connection: Connection): Promise<void> {
   let fees = 0;
   if (!payer) {
-    const {feeCalculator} = await connection.getRecentBlockhash();
+    const { feeCalculator } = await _connection.getRecentBlockhash();
 
     // Calculate the cost to fund the greeter account
-    fees += await connection.getMinimumBalanceForRentExemption(GREETING_SIZE);
+    fees += await _connection.getMinimumBalanceForRentExemption(GREETING_SIZE);
 
     // Calculate the cost of sending transactions
     fees += feeCalculator.lamportsPerSignature * 100; // wag
@@ -117,18 +118,18 @@ export async function establishPayer(): Promise<void> {
       payer = await getPayer();
     } catch (err) {
       // Fund a new payer via airdrop
-      payer = await newAccountWithLamports(connection, fees);
+      payer = await newAccountWithLamports(_connection, fees);
     }
   }
 
-  const lamports = await connection.getBalance(payer.publicKey);
+  const lamports = await _connection.getBalance(payer.publicKey);
   if (lamports < fees) {
     // This should only happen when using cli config keypair
-    const sig = await connection.requestAirdrop(
+    const sig = await _connection.requestAirdrop(
       payer.publicKey,
       fees - lamports,
     );
-    await connection.confirmTransaction(sig);
+    await _connection.confirmTransaction(sig);
   }
 
   console.log(
@@ -211,7 +212,7 @@ export async function checkProgram(): Promise<void> {
 export async function sayHello(): Promise<void> {
   console.log('Saying hello to', greetedPubkey.toBase58());
   const instruction = new TransactionInstruction({
-    keys: [{pubkey: greetedPubkey, isSigner: false, isWritable: true}],
+    keys: [{ pubkey: greetedPubkey, isSigner: false, isWritable: true }],
     programId,
     data: Buffer.alloc(0), // All instructions are hellos
   });
