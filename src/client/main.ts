@@ -27,10 +27,10 @@ async function main() {
   const connection: Connection = await establishConnection();
 
   // Determine who pays for the fees
-  const payer = await establishPayer(connection);
+  const payer: Keypair = await establishPayer(connection);
 
   // Check if the program has been deployed
-  const [greetedPubkey, programId] = await checkProgram(connection, payer);
+  const [greetedPubkey, programId]: [PublicKey, PublicKey] = await checkProgram(connection, payer);
 
   // Say hello to an account
   await sayHello(connection, payer, greetedPubkey, programId);
